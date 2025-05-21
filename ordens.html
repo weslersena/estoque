@@ -160,20 +160,26 @@
             navigator.mediaDevices.getUserMedia({
                 video: {
                     facingMode: "environment",
-                    width: { min: 640, ideal: 1280 },
-                    height: { min: 480, ideal: 720 }
+                    width: { ideal: 640 },
+                    height: { ideal: 480 }
                 }
             }).then(function(stream) {
-                console.log('Câmera iniciada');
+                console.log('Câmera iniciada com stream:', stream);
                 videoStream = stream;
                 const video = document.getElementById('video');
                 video.srcObject = stream;
                 video.setAttribute('playsinline', true);
-                video.play();
-                startQRScanner();
+                video.play().then(() => {
+                    console.log('Vídeo iniciado');
+                    startQRScanner();
+                }).catch(err => {
+                    console.error('Erro ao iniciar vídeo:', err);
+                    alert('Erro ao iniciar vídeo: ' + err.message);
+                    stopScanner();
+                });
             }).catch(function(err) {
                 console.error('Erro ao acessar a câmera:', err);
-                alert('Erro ao acessar a câmera: ' + err.message + '. Verifique as permissões.');
+                alert('Erro ao acessar a câmera: ' + err.message + '. Verifique as permissões no Chrome e nas Configurações do celular.');
                 stopScanner();
             });
         }
@@ -185,7 +191,10 @@
             const canvasContext = canvas.getContext('2d');
 
             function scanQR() {
-                if (!scannerActive) return;
+                if (!scannerActive) {
+                    console.log('Escaneamento parado');
+                    return;
+                }
                 if (video.readyState === video.HAVE_ENOUGH_DATA) {
                     canvas.width = video.videoWidth;
                     canvas.height = video.videoHeight;
@@ -197,15 +206,16 @@
                         processQRCode(code.data);
                         stopScanner();
                         document.getElementById('status').focus();
+                    } else {
+                        console.log('Nenhum QR Code detectado neste frame');
                     }
+                } else {
+                    console.log('Vídeo ainda não está pronto:', video.readyState);
                 }
                 requestAnimationFrame(scanQR);
             }
 
-            video.onplaying = function() {
-                console.log('Vídeo pronto, iniciando escaneamento');
-                scanQR();
-            };
+            scanQR();
         }
 
         function processQRCode(code) {
@@ -256,14 +266,19 @@
                 if (!response.ok) {
                     throw new Error(`Erro HTTP! Status: ${response.status} ${response.statusText}`);
                 }
-                return response.json();
-            }).then(data => {
-                console.log('Resposta JSON bruta:', data);
-                // Processar resposta diretamente, sem assumir 'contents'
-                const responseData = data;
-                if (responseData.status === 'error') {
-                    alert('Erro no Google Sheets: ' + responseData.message);
-                    console.log('Erro retornado pelo Apps Script:', responseData.message);
+                return response.text(); // Usar text() para inspecionar resposta bruta
+            }).then(text => {
+                console.log('Resposta bruta:', text);
+                let data;
+                try {
+                    data = JSON.parse(text);
+                } catch (e) {
+                    throw new Error('Resposta inválida do servidor: ' + e.message);
+                }
+                console.log('Resposta JSON:', data);
+                if (data.status === 'error') {
+                    alert('Erro no Google Sheets: ' + data.message);
+                    console.log('Erro retornado pelo Apps Script:', data.message);
                 } else {
                     alert('Dados salvos no Google Sheets com sucesso!');
                     console.log('Salvamento bem-sucedido');

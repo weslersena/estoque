@@ -239,7 +239,9 @@
 
         function saveToGoogleSheets(orderData) {
             console.log('Iniciando salvamento no Google Sheets:', orderData);
-            fetch('https://cors-anywhere.herokuapp.com/https://script.google.com/macros/s/AKfycbxSRSQnezhg7q19w1u4FI3tq8yjvYeSBnH5l0KYDGn4aY31rBFoy7AXbzIHe4FWCzki/exec', {
+            const proxyUrl = 'https://cors-anywhere.herokuapp.com/';
+            const scriptUrl = 'https://script.google.com/macros/s/AKfycbxSRSQnezhg7q19w1u4FI3tq8yjvYeSBnH5l0KYDGn4aY31rBFoy7AXbzIHe4FWCzki/exec';
+            fetch(proxyUrl + scriptUrl, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(orderData),
@@ -262,7 +264,11 @@
                 }
             }).catch(error => {
                 console.error('Erro ao salvar no Google Sheets:', error);
-                alert('Erro ao salvar no Google Sheets: ' + error.message + '. Dados salvos localmente.');
+                let errorMessage = error.message;
+                if (error.message.includes('403')) {
+                    errorMessage += '. Ative o proxy em https://cors-anywhere.herokuapp.com/';
+                }
+                alert('Erro ao salvar no Google Sheets: ' + errorMessage + '. Dados salvos localmente.');
             });
         }
 

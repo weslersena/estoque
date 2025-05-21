@@ -32,13 +32,16 @@
         }
         table {
             width: 100%;
-            max-width: 600px;
+            max-width: 100%;
             margin: 20px auto;
             border-collapse: collapse;
+            overflow-x: auto;
+            display: block;
         }
         th, td {
             border: 1px solid #ccc;
             padding: 8px;
+            white-space: nowrap;
         }
         .scan-mode {
             background-color: #4CAF50;
@@ -46,6 +49,10 @@
         }
         .edit-mode {
             background-color: #FF9800;
+            color: white;
+        }
+        .delete-mode {
+            background-color: #F44336;
             color: white;
         }
     </style>
@@ -70,13 +77,27 @@
     <button id="saveBtn" onclick="saveData()">Salvar</button>
     <button id="editBtn" onclick="startEdit()" disabled>Editar</button>
     <h3>Registros</h3>
-    <input type="text" id="search" placeholder="Buscar por status" inputmode="text">
+    <input type="text" id="search" placeholder="Buscar por cliente, pedido ou status" inputmode="text">
     <button onclick="searchData()">Buscar</button>
     <button onclick="exportToCSV()">Exportar para CSV</button>
     <table id="ordersTable">
         <thead>
             <tr>
-                <th>Ordem</th>
+                <th>CLIENTE</th>
+                <th>ARTE</th>
+                <th>ARTE2</th>
+                <th>PEDIDO</th>
+                <th>MAQUINA</th>
+                <th>CARGA</th>
+                <th>ARTIGO</th>
+                <th>DATA INICIO</th>
+                <th>DATA FIM</th>
+                <th>EMBALAGEM</th>
+                <th>ROTEIRO</th>
+                <th>SOLICITANTE</th>
+                <th>REGIÃO</th>
+                <th>DATA ENTREGA</th>
+                <th>QUANTIDADE (M)</th>
                 <th>Status</th>
                 <th>Observações</th>
                 <th>Data</th>
@@ -91,7 +112,7 @@
         let scannerActive = false;
         let videoStream = null;
         let editingIndex = null;
-        let currentOrderCode = '';
+        let currentOrderData = {};
 
         function highlightButton(mode) {
             document.getElementById('scanBtn').classList.remove('scan-mode');
@@ -164,7 +185,7 @@
                     const code = jsQR(imageData.data, imageData.width, imageData.height);
                     if (code && code.data) {
                         console.log(`QR Code detectado: ${code.data}`);
-                        currentOrderCode = code.data;
+                        processQRCode(code.data);
                         stopScanner();
                         document.getElementById('status').focus();
                     }
@@ -178,8 +199,35 @@
             };
         }
 
+        function processQRCode(code) {
+            const fields = code.split('-');
+            if (fields.length !== 15) {
+                alert('Erro: O QR Code deve conter 15 campos separados por hífen.');
+                currentOrderData = {};
+                return;
+            }
+            currentOrderData = {
+                cliente: fields[0],
+                arte: fields[1],
+                arte2: fields[2],
+                pedido: fields[3],
+                maquina: fields[4],
+                carga: fields[5],
+                artigo: fields[6],
+                dataInicio: fields[7],
+                dataFim: fields[8],
+                embalagem: fields[9],
+                roteiro: fields[10],
+                solicitante: fields[11],
+                regiao: fields[12],
+                dataEntrega: fields[13],
+                quantidade: fields[14]
+            };
+            console.log('Dados do QR Code processados:', currentOrderData);
+        }
+
         function saveData() {
-            if (!currentOrderCode && editingIndex === null) {
+            if (!currentOrderData.cliente && editingIndex === null) {
                 alert("Por favor, escaneie um QR Code para registrar a ordem.");
                 return;
             }
@@ -188,7 +236,7 @@
             const notes = document.getElementById('notes').value;
 
             const orderData = {
-                orderCode: currentOrderCode,
+                ...currentOrderData,
                 status,
                 notes,
                 timestamp: new Date().toLocaleString('pt-BR')
@@ -213,7 +261,23 @@
         function startEdit(index) {
             editingIndex = index;
             const order = orders[index];
-            currentOrderCode = order.orderCode;
+            currentOrderData = {
+                cliente: order.cliente,
+                arte: order.arte,
+                arte2: order.arte2,
+                pedido: order.pedido,
+                maquina: order.maquina,
+                carga: order.carga,
+                artigo: order.artigo,
+                dataInicio: order.dataInicio,
+                dataFim: order.dataFim,
+                embalagem: order.embalagem,
+                roteiro: order.roteiro,
+                solicitante: order.solicitante,
+                regiao: order.regiao,
+                dataEntrega: order.dataEntrega,
+                quantidade: order.quantidade
+            };
             document.getElementById('status').value = order.status;
             document.getElementById('notes').value = order.notes;
             document.getElementById('saveBtn').textContent = 'Salvar Edição';
@@ -222,8 +286,17 @@
             document.getElementById('status').focus();
         }
 
+        function deleteOrder(index) {
+            if (confirm('Tem certeza que deseja excluir esta ordem?')) {
+                orders.splice(index, 1);
+                localStorage.setItem('orders', JSON.stringify(orders));
+                displayOrders();
+                alert('Ordem excluída com sucesso!');
+            }
+        }
+
         function clearForm() {
-            currentOrderCode = '';
+            currentOrderData = {};
             document.getElementById('status').value = 'Processo';
             document.getElementById('notes').value = '';
             document.getElementById('saveBtn').textContent = 'Salvar';
@@ -238,11 +311,28 @@
             data.forEach((order, index) => {
                 const row = document.createElement('tr');
                 row.innerHTML = `
-                    <td>${order.orderCode}</td>
+                    <td>${order.cliente}</td>
+                    <td>${order.arte}</td>
+                    <td>${order.arte2}</td>
+                    <td>${order.pedido}</td>
+                    <td>${order.maquina}</td>
+                    <td>${order.carga}</td>
+                    <td>${order.artigo}</td>
+                    <td>${order.dataInicio}</td>
+                    <td>${order.dataFim}</td>
+                    <td>${order.embalagem}</td>
+                    <td>${order.roteiro}</td>
+                    <td>${order.solicitante}</td>
+                    <td>${order.regiao}</td>
+                    <td>${order.dataEntrega}</td>
+                    <td>${order.quantidade}</td>
                     <td>${order.status}</td>
                     <td>${order.notes}</td>
                     <td>${order.timestamp}</td>
-                    <td><button onclick="startEdit(${index})">Editar</button></td>
+                    <td>
+                        <button onclick="startEdit(${index})">Editar</button>
+                        <button class="delete-mode" onclick="deleteOrder(${index})">Excluir</button>
+                    </td>
                 `;
                 tableBody.appendChild(row);
             });
@@ -251,16 +341,24 @@
         function searchData() {
             const searchTerm = document.getElementById('search').value.toLowerCase();
             const filteredData = orders.filter(order =>
-                order.orderCode.toLowerCase().includes(searchTerm) ||
+                order.cliente.toLowerCase().includes(searchTerm) ||
+                order.pedido.toLowerCase().includes(searchTerm) ||
                 order.status.toLowerCase().includes(searchTerm)
             );
             displayOrders(filteredData);
         }
 
         function exportToCSV() {
-            const csv = ['Ordem,Status,Observações,Data'];
+            const csv = [
+                'CLIENTE,ARTE,ARTE2,PEDIDO,MAQUINA,CARGA,ARTIGO,DATA INICIO,DATA FIM,EMBALAGEM,ROTEIRO,SOLICITANTE,REGIÃO,DATA ENTREGA,QUANTIDADE (M),Status,Observações,Data'
+            ];
             orders.forEach(order => {
-                csv.push(`${order.orderCode},${order.status},${order.notes},${order.timestamp}`);
+                csv.push(
+                    `${order.cliente},${order.arte},${order.arte2},${order.pedido},${order.maquina},` +
+                    `${order.carga},${order.artigo},${order.dataInicio},${order.dataFim},${order.embalagem},` +
+                    `${order.roteiro},${order.solicitante},${order.regiao},${order.dataEntrega},${order.quantidade},` +
+                    `${order.status},${order.notes},${order.timestamp}`
+                );
             });
             const blob = new Blob([csv.join('\n')], { type: 'text/csv' });
             const url = URL.createObjectURL(blob);

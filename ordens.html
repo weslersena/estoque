@@ -241,6 +241,9 @@
             console.log('Iniciando salvamento no Google Sheets:', orderData);
             const proxyUrl = 'https://cors-anywhere.herokuapp.com/';
             const scriptUrl = 'https://script.google.com/macros/s/AKfycbxSRSQnezhg7q19w1u4FI3tq8yjvYeSBnH5l0KYDGn4aY31rBFoy7AXbzIHe4FWCzki/exec';
+            // Alternativa: descomentar abaixo para usar api.allorigins.win
+            // const proxyUrl = 'https://api.allorigins.win/raw?url=';
+            // const scriptUrl = 'https://script.google.com/macros/s/AKfycbxSRSQnezhg7q19w1u4FI3tq8yjvYeSBnH5l0KYDGn4aY31rBFoy7AXbzIHe4FWCzki/exec';
             fetch(proxyUrl + scriptUrl, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -419,7 +422,7 @@
                 csv.push(
                     `"${order.cliente || ''}","${order.arte || ''}","${order.arte2 || ''}","${order.pedido || ''}","${order.maquina || ''}",` +
                     `"${order.carga || ''}","${order.artigo || ''}","${order.dataInicio || ''}","${order.dataFim || ''}","${order.embalagem || ''}",` +
-                    `"${order.roteiro || ''}","${order.solicitante || ''}","${order.regiao || ''}","${order.dataEntrega || ''}","${order.quantidade || ''}",` +
+                    `"${order.roteiro || ''}","${order.solicitante || ''}","${orig.regiao || ''}","${order.dataEntrega || ''}","${order.quantidade || ''}",` +
                     `"${order.status || ''}","${order.notes || ''}","${order.timestamp || ''}"`
                 );
             });

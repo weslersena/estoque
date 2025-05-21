@@ -232,34 +232,37 @@
         }
 
         function saveToGoogleSheets(orderData) {
-            console.log('Enviando dados para Google Sheets:', orderData);
-            fetch('https://script.google.com/macros/s/AKfycbxSRSQnezhg7q19w1u4FI3tq8yjvYeSBnH5l0KYDGn4aY31rBFoy7AXbzIHe4FWCzki/exec', {
+            console.log('Iniciando salvamento no Google Sheets:', orderData);
+            fetch('https://script.google.com/macros/s/AKfycbwuWAoOyVwLrOdVMWtIu3A1k6uhW3fijvFBjom7oA3bymZ196Q5zMd5xmNSGwVmY_EO/exec', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(orderData),
-                redirect: 'follow'
+                redirect: 'follow',
+                mode: 'cors'
             }).then(response => {
-                console.log('Resposta do servidor:', response);
+                console.log('Resposta recebida do servidor:', response);
                 if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
+                    throw new Error(`Erro HTTP! Status: ${response.status}`);
                 }
                 return response.json();
             }).then(data => {
-                console.log('Dados enviados com sucesso:', data);
+                console.log('Dados processados:', data);
                 if (data.status === 'error') {
                     alert('Erro no Google Sheets: ' + data.message);
                 } else {
                     alert('Dados salvos no Google Sheets com sucesso!');
                 }
             }).catch(error => {
-                console.error('Erro ao enviar para Google Sheets:', error);
-                alert('Erro ao salvar no Google Sheets: ' + error.message);
+                console.error('Erro ao salvar no Google Sheets:', error);
+                alert('Erro ao salvar no Google Sheets: ' + error.message + '. Dados salvos localmente.');
             });
         }
 
         function saveData() {
+            console.log('Iniciando função saveData');
             if (!currentOrderData.cliente && editingIndex === null) {
                 alert("Por favor, escaneie um QR Code para registrar a ordem.");
+                console.log('Nenhum QR Code escaneado, abortando');
                 return;
             }
 
@@ -272,6 +275,7 @@
                 notes,
                 timestamp: new Date().toLocaleString('pt-BR')
             };
+            console.log('Dados da ordem preparados:', orderData);
 
             if (editingIndex !== null) {
                 orders[editingIndex] = orderData;
@@ -279,18 +283,22 @@
                 document.getElementById('editBtn').disabled = true;
                 document.getElementById('saveBtn').textContent = 'Salvar';
                 alert('Ordem editada com sucesso!');
+                console.log('Ordem editada, índice:', editingIndex);
             } else {
                 orders.push(orderData);
-                alert('Ordem salva com sucesso!');
+                alert('Ordem salva com sucesso localmente!');
+                console.log('Nova ordem adicionada');
             }
 
             saveToGoogleSheets(orderData);
             localStorage.setItem('orders', JSON.stringify(orders));
+            console.log('Dados salvos no localStorage');
             clearForm();
             displayOrders();
         }
 
         function startEdit(index) {
+            console.log('Iniciando edição, índice:', index);
             editingIndex = index;
             const order = orders[index];
             currentOrderData = {
@@ -316,18 +324,22 @@
             document.getElementById('editBtn').disabled = true;
             highlightButton('edit');
             document.getElementById('status').focus();
+            console.log('Formulário preenchido para edição');
         }
 
         function deleteOrder(index) {
+            console.log('Iniciando exclusão, índice:', index);
             if (confirm('Tem certeza que deseja excluir esta ordem?')) {
                 orders.splice(index, 1);
                 localStorage.setItem('orders', JSON.stringify(orders));
                 displayOrders();
                 alert('Ordem excluída com sucesso!');
+                console.log('Ordem excluída');
             }
         }
 
         function clearForm() {
+            console.log('Limpando formulário');
             currentOrderData = {};
             document.getElementById('status').value = 'Processo';
             document.getElementById('notes').value = '';
@@ -338,6 +350,7 @@
         }
 
         function displayOrders(data = orders) {
+            console.log('Exibindo ordens:', data.length);
             const tableBody = document.getElementById('ordersBody');
             tableBody.innerHTML = '';
             data.forEach((order, index) => {
@@ -371,6 +384,7 @@
         }
 
         function searchData() {
+            console.log('Iniciando busca');
             const searchTerm = document.getElementById('search').value.toLowerCase();
             const filteredData = orders.filter(order =>
                 order.cliente.toLowerCase().includes(searchTerm) ||
@@ -378,9 +392,11 @@
                 order.status.toLowerCase().includes(searchTerm)
             );
             displayOrders(filteredData);
+            console.log('Busca concluída, resultados:', filteredData.length);
         }
 
         function exportToCSV() {
+            console.log('Iniciando exportação para CSV');
             const csv = [
                 'CLIENTE,ARTE,ARTE2,PEDIDO,MAQUINA,CARGA,ARTIGO,DATA INICIO,DATA FIM,EMBALAGEM,ROTEIRO,SOLICITANTE,REGIÃO,DATA ENTREGA,QUANTIDADE (M),Status,Observações,Data'
             ];
@@ -400,10 +416,12 @@
             a.click();
             URL.revokeObjectURL(url);
             alert('Dados exportados para CSV!');
+            console.log('Exportação concluída');
         }
 
         displayOrders();
         window.addEventListener('beforeunload', stopScanner);
+        console.log('Página carregada');
     </script>
 </body>
 </html>

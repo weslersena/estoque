@@ -24,7 +24,7 @@
         #canvas {
             display: none;
         }
-        input, textarea, select, button {
+        select, textarea, button {
             margin: 10px;
             padding: 5px;
             width: 80%;
@@ -44,10 +44,6 @@
             background-color: #4CAF50;
             color: white;
         }
-        .manual-mode {
-            background-color: #2196F3;
-            color: white;
-        }
         .edit-mode {
             background-color: #FF9800;
             color: white;
@@ -62,8 +58,6 @@
         <canvas id="canvas"></canvas>
     </div>
     <button id="scanBtn" onclick="startScanner()">Escanear QR Code</button>
-    <button id="manualBtn" onclick="enableManualInput()">Informar Manualmente</button>
-    <p>Ordem de Produção: <input type="text" id="orderCode" readonly></p>
     <p>Status: 
         <select id="status">
             <option value="Processo">Processo</option>
@@ -76,8 +70,9 @@
     <button id="saveBtn" onclick="saveData()">Salvar</button>
     <button id="editBtn" onclick="startEdit()" disabled>Editar</button>
     <h3>Registros</h3>
-    <input type="text" id="search" placeholder="Buscar por ordem ou status" inputmode="text">
+    <input type="text" id="search" placeholder="Buscar por status" inputmode="text">
     <button onclick="searchData()">Buscar</button>
+    <button onclick="exportToCSV()">Exportar para CSV</button>
     <table id="ordersTable">
         <thead>
             <tr>
@@ -96,15 +91,13 @@
         let scannerActive = false;
         let videoStream = null;
         let editingIndex = null;
+        let currentOrderCode = '';
 
         function highlightButton(mode) {
             document.getElementById('scanBtn').classList.remove('scan-mode');
-            document.getElementById('manualBtn').classList.remove('manual-mode');
             document.getElementById('editBtn').classList.remove('edit-mode');
             if (mode === 'scan') {
                 document.getElementById('scanBtn').classList.add('scan-mode');
-            } else if (mode === 'manual') {
-                document.getElementById('manualBtn').classList.add('manual-mode');
             } else if (mode === 'edit') {
                 document.getElementById('editBtn').classList.add('edit-mode');
             }
@@ -127,6 +120,7 @@
             stopScanner();
             scannerActive = true;
             highlightButton('scan');
+            console.log('Iniciando scanner de QR Code');
 
             if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
                 alert('Erro: Seu dispositivo não suporta acesso à câmera.');
@@ -146,6 +140,7 @@
                 video.srcObject = stream;
                 video.setAttribute('playsinline', true);
                 video.play();
+                console.log('Câmera iniciada');
                 startQRScanner();
             }).catch(function(err) {
                 console.error('Erro ao acessar a câmera:', err);
@@ -169,7 +164,7 @@
                     const code = jsQR(imageData.data, imageData.width, imageData.height);
                     if (code && code.data) {
                         console.log(`QR Code detectado: ${code.data}`);
-                        document.getElementById('orderCode').value = code.data;
+                        currentOrderCode = code.data;
                         stopScanner();
                         document.getElementById('status').focus();
                     }
@@ -178,35 +173,22 @@
             }
 
             video.onplaying = function() {
+                console.log('Vídeo pronto, iniciando escaneamento');
                 scanQR();
             };
         }
 
-        function enableManualInput() {
-            stopScanner();
-            const input = document.getElementById('orderCode');
-            input.removeAttribute('readonly');
-            input.focus();
-            highlightButton('manual');
-            input.onblur = () => {
-                if (input.value) {
-                    document.getElementById('status').focus();
-                }
-            };
-        }
-
         function saveData() {
-            const orderCode = document.getElementById('orderCode').value;
-            const status = document.getElementById('status').value;
-            const notes = document.getElementById('notes').value;
-
-            if (!orderCode) {
-                alert("Por favor, informe o código da ordem de produção.");
+            if (!currentOrderCode && editingIndex === null) {
+                alert("Por favor, escaneie um QR Code para registrar a ordem.");
                 return;
             }
 
+            const status = document.getElementById('status').value;
+            const notes = document.getElementById('notes').value;
+
             const orderData = {
-                orderCode,
+                orderCode: currentOrderCode,
                 status,
                 notes,
                 timestamp: new Date().toLocaleString('pt-BR')
@@ -231,10 +213,9 @@
         function startEdit(index) {
             editingIndex = index;
             const order = orders[index];
-            document.getElementById('orderCode').value = order.orderCode;
+            currentOrderCode = order.orderCode;
             document.getElementById('status').value = order.status;
             document.getElementById('notes').value = order.notes;
-            document.getElementById('orderCode').setAttribute('readonly', 'readonly');
             document.getElementById('saveBtn').textContent = 'Salvar Edição';
             document.getElementById('editBtn').disabled = true;
             highlightButton('edit');
@@ -242,10 +223,9 @@
         }
 
         function clearForm() {
-            document.getElementById('orderCode').value = '';
+            currentOrderCode = '';
             document.getElementById('status').value = 'Processo';
             document.getElementById('notes').value = '';
-            document.getElementById('orderCode').setAttribute('readonly', 'readonly');
             document.getElementById('saveBtn').textContent = 'Salvar';
             editingIndex = null;
             document.getElementById('editBtn').disabled = true;
@@ -275,6 +255,21 @@
                 order.status.toLowerCase().includes(searchTerm)
             );
             displayOrders(filteredData);
+        }
+
+        function exportToCSV() {
+            const csv = ['Ordem,Status,Observações,Data'];
+            orders.forEach(order => {
+                csv.push(`${order.orderCode},${order.status},${order.notes},${order.timestamp}`);
+            });
+            const blob = new Blob([csv.join('\n')], { type: 'text/csv' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'ordens.csv';
+            a.click();
+            URL.revokeObjectURL(url);
+            alert('Dados exportados para CSV!');
         }
 
         displayOrders();

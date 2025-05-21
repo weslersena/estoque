@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Controle de Estoque Simples</title>
+    <!-- Adicionando ambas as bibliotecas -->
+    <script src="https://unpkg.com/quagga@0.12.1/dist/quagga.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            text-align: center;
+        }
+        #scanner-container {
+            width: 100%;
+            max-width: 640px;
+            margin: 0 auto;
+            position: relative;
+        }
+        #video {
+            width: 100%;
+            border: 1px solid #ccc;
+        }
+        #canvas {
+            display: none;
+        }
+        input, textarea, button {
+            margin: 10px;
+            padding: 5px;
+            width: 80%;
+            max-width: 300px;
+        }
+        table {
+            width: 100%;
+            max-width: 600px;
+            margin: 20px auto;
+            border-collapse: collapse;
+        }
+        th, td {
+            border: 1px solid #ccc;
+            padding: 8px;
+        }
+        .scan-mode {
+            background-color: #4CAF50;
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <h1>Controle de Estoque</h1>
+    <h3>Ler Código</h3>
+    <div id="scanner-container">
+        <video id="video" playsinline></video>
+        <canvas id="canvas"></canvas>
+    </div>
+    <button id="productBtn" onclick="startScanner('product')">Escanear Produto</button>
+    <button id="shelfBtn" onclick="startScanner('shelf')">Escanear Prateleira</button>
+    <p>Produto: <input type="text" id="productCode" readonly></p>
+    <p>Prateleira: <input type="text" id="shelfCode" readonly></p>
+    <p>Quantidade: <input type="number" id="quantity" min="0" inputmode="numeric"></p>
+    <p>Observações: <textarea id="notes" rows="4" style="resize: vertical;"></textarea></p>
+    <button onclick="saveData()">Salvar</button>
+    <h3>Consulta de Estoque</h3>
+    <input type="text" id="search" placeholder="Buscar por código de produto ou prateleira" inputmode="text">
+    <button onclick="searchData()">Buscar</button>
+    <table id="inventoryTable">
+        <thead>
+            <tr>
+                <th>Produto</th>
+                <th>Prateleira</th>
+                <th>Quantidade</th>
+                <th>Observações</th>
+            </tr>
+        </thead>
+        <tbody id="inventoryBody"></tbody>
+    </table>
+
+    <script>
+        let currentScanType = '';
+        let inventory = JSON.parse(localStorage.getItem('inventory')) || [];
+        let scannerActive = false;
+        let videoStream = null;
+
+        function highlightButton(type) {
+            document.getElementById('productBtn').classList.remove('scan-mode');
+            document.getElementById('shelfBtn').classList.remove('scan-mode');
+            if (type) {
+                document.getElementById(`${type}Btn`).classList.add('scan-mode');
+            }
+        }
+
+        function stopAllScanners() {
+            // Parar Quagga se estiver ativo
+            if (Quagga && scannerActive) {
+                Quagga.stop();
+                scannerActive = false;
+            }
+            
+            // Parar o stream de vídeo se estiver ativo
+            if (videoStream) {
+                videoStream.getTracks().forEach(track => track.stop());
+                videoStream = null;
+            }
+            
+            // Limpar o vídeo
+            const video = document.getElementById('video');
+            video.srcObject = null;
+            
+            currentScanType = '';
+            highlightButton('');
+        }
+
+        function startScanner(type) {
+            // Parar scanners anteriores
+            stopAllScanners();
+            
+            currentScanType = type;
+            highlightButton(type);
+            
+            // Perguntar ao usuário qual tipo de código quer escanear
+            const codeType = confirm("Escaneando " + (type === 'product' ? 'Produto' : 'Prateleira') + 
+                               "\n\nDeseja escanear QR Code? (OK para QR Code, Cancelar para Código de Barras)");
+            
+            if (codeType) {
+                startQRScanner();
+            } else {
+                startBarcodeScanner();
+            }
+        }
+
+        function startBarcodeScanner() {
+            if (!Quagga) {
+                alert('Erro: Biblioteca QuaggaJS não foi carregada.');
+                return;
+            }
+            
+            Quagga.init({
+                inputStream: {
+                    name: "Live",
+                    type: "LiveStream",
+                    target: document.querySelector('#video'),
+                    constraints: {
+                        facingMode: "environment",
+                        width: { min: 640 },
+                        height: { min: 480 }
+                    }
+                },
+                decoder: {
+                    readers: ["ean_reader", "code_128_reader", "upc_reader", "ean_8_reader"]
+                },
+                locate: true
+            }, function(err) {
+                if (err) {
+                    console.error('Erro ao iniciar o scanner:', err);
+                    alert('Erro ao iniciar a câmera: ' + err.message);
+                    highlightButton('');
+                    return;
+                }
+                Quagga.start();
+                scannerActive = true;
+            });
+
+            Quagga.onDetected(function(data) {
+                const code = data.codeResult.code;
+                processScannedCode(code);
+                stopAllScanners();
+            });
+        }
+
+        function startQRScanner() {
+            const video = document.getElementById('video');
+            const canvas = document.getElementById('canvas');
+            const canvasContext = canvas.getContext('2d');
+            
+            // Configurar constraints para melhor leitura de QR Code
+            const constraints = {
+                audio: false,
+                video: {
+                    facingMode: "environment",
+                    width: { min: 640, ideal: 1280 },
+                    height: { min: 480, ideal: 720 }
+                }
+            };
+            
+            navigator.mediaDevices.getUserMedia(constraints)
+                .then(function(stream) {
+                    videoStream = stream;
+                    video.srcObject = stream;
+                    video.setAttribute('playsinline', true); // importante para iOS
+                    video.play();
+                    
+                    function scanQR() {
+                        if (!currentScanType) return; // Se o scanner foi desativado
+                        
+                        if (video.readyState === video.HAVE_ENOUGH_DATA) {
+                            canvas.width = video.videoWidth;
+                            canvas.height = video.videoHeight;
+                            canvasContext.drawImage(video, 0, 0, canvas.width, canvas.height);
+                            
+                            const imageData = canvasContext.getImageData(0, 0, canvas.width, canvas.height);
+                            const code = jsQR(imageData.data, imageData.width, imageData.height);
+                            
+                            if (code) {
+                                processScannedCode(code.data);
+                                stopAllScanners();
+                                return;
+                            }
+                        }
+                        
+                        requestAnimationFrame(scanQR);
+                    }
+                    
+                    video.onplaying = function() {
+                        scanQR();
+                    };
+                })
+                .catch(function(err) {
+                    console.error("Erro ao acessar a câmera: ", err);
+                    alert("Erro ao acessar a câmera: " + err.message);
+                    highlightButton('');
+                });
+        }
+
+        function processScannedCode(code) {
+            if (!currentScanType) return;
+            
+            if (currentScanType === 'product') {
+                document.getElementById('productCode').value = code;
+                // Foca automaticamente no campo de quantidade para agilizar
+                document.getElementById('quantity').focus();
+            } else if (currentScanType === 'shelf') {
+                document.getElementById('shelfCode').value = code;
+            }
+        }
+
+        function saveData() {
+            const productCode = document.getElementById('productCode').value;
+            const shelfCode = document.getElementById('shelfCode').value;
+            const quantity = document.getElementById('quantity').value;
+            const notes = document.getElementById('notes').value;
+
+            if (!productCode || !shelfCode || !quantity) {
+                alert("Por favor, preencha todos os campos obrigatórios.");
+                return;
+            }
+
+            // Verifica se já existe um item com o mesmo produto e prateleira
+            const existingIndex = inventory.findIndex(
+                item => item.productCode === productCode && item.shelfCode === shelfCode
+            );
+
+            if (existingIndex >= 0) {
+                // Atualiza o item existente
+                inventory[existingIndex] = {
+                    productCode,
+                    shelfCode,
+                    quantity,
+                    notes
+                };
+            } else {
+                // Adiciona novo item
+                inventory.push({
+                    productCode,
+                    shelfCode,
+                    quantity,
+                    notes
+                });
+            }
+
+            localStorage.setItem('inventory', JSON.stringify(inventory));
+            alert("Dados salvos com sucesso!");
+            clearForm();
+            displayInventory();
+        }
+
+        function clearForm() {
+            document.getElementById('productCode').value = '';
+            document.getElementById('shelfCode').value = '';
+            document.getElementById('quantity').value = '';
+            document.getElementById('notes').value = '';
+        }
+
+        function displayInventory(data = inventory) {
+            const tableBody = document.getElementById('inventoryBody');
+            tableBody.innerHTML = '';
+            data.forEach(item => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${item.productCode}</td>
+                    <td>${item.shelfCode}</td>
+                    <td>${item.quantity}</td>
+                    <td>${item.notes}</td>
+                `;
+                tableBody.appendChild(row);
+            });
+        }
+
+        function searchData() {
+            const searchTerm = document.getElementById('search').value.toLowerCase();
+            const filteredData = inventory.filter(item =>
+                item.productCode.toLowerCase().includes(searchTerm) ||
+                item.shelfCode.toLowerCase().includes(searchTerm)
+            );
+            displayInventory(filteredData);
+        }
+
+        // Carregar dados ao iniciar
+        displayInventory();
+
+        // Parar scanners quando a página for fechada
+        window.addEventListener('beforeunload', stopAllScanners);
+    </script>
+</body>
+</html>

@@ -226,6 +226,16 @@
             console.log('Dados do QR Code processados:', currentOrderData);
         }
 
+        function saveToGoogleSheets(orderData) {
+            fetch('https://script.google.com/macros/s/AKfycbwdd29-F7Q6wbRpdoOZVaSiHdDMRi40rJ77MhQxT5ZaWJ1Ki1CgKGxUjqNTeapSi3Zs/exec', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(orderData)
+            }).then(response => response.json())
+                .then(data => console.log('Dados enviados para Google Sheets:', data))
+                .catch(error => console.error('Erro ao enviar para Google Sheets:', error));
+        }
+
         function saveData() {
             if (!currentOrderData.cliente && editingIndex === null) {
                 alert("Por favor, escaneie um QR Code para registrar a ordem.");
@@ -253,6 +263,7 @@
                 alert('Ordem salva com sucesso!');
             }
 
+            saveToGoogleSheets(orderData);
             localStorage.setItem('orders', JSON.stringify(orders));
             clearForm();
             displayOrders();

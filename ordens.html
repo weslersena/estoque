@@ -238,10 +238,16 @@
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(orderData)
             }).then(response => {
-                console.log('Resposta do Google Sheets:', response);
+                console.log('Resposta do servidor:', response);
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
                 return response.json();
             }).then(data => {
                 console.log('Dados enviados com sucesso:', data);
+                if (data.status === 'error') {
+                    alert('Erro no Google Sheets: ' + data.message);
+                }
             }).catch(error => {
                 console.error('Erro ao enviar para Google Sheets:', error);
                 alert('Erro ao salvar no Google Sheets: ' + error.message);

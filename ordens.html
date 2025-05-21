@@ -120,6 +120,7 @@
         let currentOrderData = {};
 
         function highlightButton(mode) {
+            console.log('Destacando botão:', mode);
             document.getElementById('scanBtn').classList.remove('scan-mode');
             document.getElementById('editBtn').classList.remove('edit-mode');
             if (mode === 'scan') {
@@ -130,6 +131,7 @@
         }
 
         function stopScanner() {
+            console.log('Parando scanner');
             if (scannerActive) {
                 scannerActive = false;
             }
@@ -143,13 +145,14 @@
         }
 
         function startScanner() {
+            console.log('Iniciando scanner de QR Code');
             stopScanner();
             scannerActive = true;
             highlightButton('scan');
-            console.log('Iniciando scanner de QR Code');
 
             if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
                 alert('Erro: Seu dispositivo não suporta acesso à câmera.');
+                console.log('Câmera não suportada');
                 stopScanner();
                 return;
             }
@@ -161,12 +164,12 @@
                     height: { min: 480, ideal: 720 }
                 }
             }).then(function(stream) {
+                console.log('Câmera iniciada');
                 videoStream = stream;
                 const video = document.getElementById('video');
                 video.srcObject = stream;
                 video.setAttribute('playsinline', true);
                 video.play();
-                console.log('Câmera iniciada');
                 startQRScanner();
             }).catch(function(err) {
                 console.error('Erro ao acessar a câmera:', err);
@@ -176,6 +179,7 @@
         }
 
         function startQRScanner() {
+            console.log('Iniciando escaneamento de QR Code');
             const video = document.getElementById('video');
             const canvas = document.getElementById('canvas');
             const canvasContext = canvas.getContext('2d');
@@ -205,9 +209,11 @@
         }
 
         function processQRCode(code) {
+            console.log('Processando QR Code:', code);
             const fields = code.split('-');
             if (fields.length !== 15) {
                 alert('Erro: O QR Code deve conter 15 campos separados por hífen.');
+                console.log('QR Code inválido, campos:', fields.length);
                 currentOrderData = {};
                 return;
             }
@@ -233,24 +239,26 @@
 
         function saveToGoogleSheets(orderData) {
             console.log('Iniciando salvamento no Google Sheets:', orderData);
-            fetch('https://script.google.com/macros/s/AKfycbwuWAoOyVwLrOdVMWtIu3A1k6uhW3fijvFBjom7oA3bymZ196Q5zMd5xmNSGwVmY_EO/exec', {
+            fetch('https://cors-anywhere.herokuapp.com/https://script.google.com/macros/s/AKfycbxSRSQnezhg7q19w1u4FI3tq8yjvYeSBnH5l0KYDGn4aY31rBFoy7AXbzIHe4FWCzki/exec', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(orderData),
                 redirect: 'follow',
-                mode: 'cors'
+                credentials: 'omit'
             }).then(response => {
-                console.log('Resposta recebida do servidor:', response);
+                console.log('Resposta do servidor:', response.status, response.statusText);
                 if (!response.ok) {
-                    throw new Error(`Erro HTTP! Status: ${response.status}`);
+                    throw new Error(`Erro HTTP! Status: ${response.status} ${response.statusText}`);
                 }
                 return response.json();
             }).then(data => {
-                console.log('Dados processados:', data);
+                console.log('Resposta JSON:', data);
                 if (data.status === 'error') {
                     alert('Erro no Google Sheets: ' + data.message);
+                    console.log('Erro retornado pelo Apps Script:', data.message);
                 } else {
                     alert('Dados salvos no Google Sheets com sucesso!');
+                    console.log('Salvamento bem-sucedido');
                 }
             }).catch(error => {
                 console.error('Erro ao salvar no Google Sheets:', error);
@@ -262,7 +270,7 @@
             console.log('Iniciando função saveData');
             if (!currentOrderData.cliente && editingIndex === null) {
                 alert("Por favor, escaneie um QR Code para registrar a ordem.");
-                console.log('Nenhum QR Code escaneado, abortando');
+                console.log('Nenhum QR Code escaneado');
                 return;
             }
 
@@ -275,21 +283,22 @@
                 notes,
                 timestamp: new Date().toLocaleString('pt-BR')
             };
-            console.log('Dados da ordem preparados:', orderData);
+            console.log('Dados da ordem:', orderData);
 
             if (editingIndex !== null) {
+                console.log('Editando ordem, índice:', editingIndex);
                 orders[editingIndex] = orderData;
                 editingIndex = null;
                 document.getElementById('editBtn').disabled = true;
                 document.getElementById('saveBtn').textContent = 'Salvar';
                 alert('Ordem editada com sucesso!');
-                console.log('Ordem editada, índice:', editingIndex);
             } else {
+                console.log('Adicionando nova ordem');
                 orders.push(orderData);
                 alert('Ordem salva com sucesso localmente!');
-                console.log('Nova ordem adicionada');
             }
 
+            console.log('Chamando saveToGoogleSheets');
             saveToGoogleSheets(orderData);
             localStorage.setItem('orders', JSON.stringify(orders));
             console.log('Dados salvos no localStorage');

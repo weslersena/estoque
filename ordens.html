@@ -236,7 +236,8 @@
             fetch('https://script.google.com/macros/s/AKfycbwuWAoOyVwLrOdVMWtIu3A1k6uhW3fijvFBjom7oA3bymZ196Q5zMd5xmNSGwVmY_EO/exec', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(orderData)
+                body: JSON.stringify(orderData),
+                redirect: 'follow'
             }).then(response => {
                 console.log('Resposta do servidor:', response);
                 if (!response.ok) {
@@ -247,6 +248,8 @@
                 console.log('Dados enviados com sucesso:', data);
                 if (data.status === 'error') {
                     alert('Erro no Google Sheets: ' + data.message);
+                } else {
+                    alert('Dados salvos no Google Sheets com sucesso!');
                 }
             }).catch(error => {
                 console.error('Erro ao enviar para Google Sheets:', error);
@@ -383,10 +386,10 @@
             ];
             orders.forEach(order => {
                 csv.push(
-                    `${order.cliente},${order.arte},${order.arte2},${order.pedido},${order.maquina},` +
-                    `${order.carga},${order.artigo},${order.dataInicio},${order.dataFim},${order.embalagem},` +
-                    `${order.roteiro},${order.solicitante},${order.regiao},${order.dataEntrega},${order.quantidade},` +
-                    `${order.status},${order.notes},${order.timestamp}`
+                    `"${order.cliente || ''}","${order.arte || ''}","${order.arte2 || ''}","${order.pedido || ''}","${order.maquina || ''}",` +
+                    `"${order.carga || ''}","${order.artigo || ''}","${order.dataInicio || ''}","${order.dataFim || ''}","${order.embalagem || ''}",` +
+                    `"${order.roteiro || ''}","${order.solicitante || ''}","${order.regiao || ''}","${order.dataEntrega || ''}","${order.quantidade || ''}",` +
+                    `"${order.status || ''}","${order.notes || ''}","${order.timestamp || ''}"`
                 );
             });
             const blob = new Blob([csv.join('\n')], { type: 'text/csv' });

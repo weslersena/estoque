@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Controle de Estoque Simples</title>
-    <!-- Adicionando ambas as bibliotecas -->
     <script src="https://unpkg.com/quagga@0.12.1/dist/quagga.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
     <style>
@@ -46,6 +45,10 @@
             background-color: #4CAF50;
             color: white;
         }
+        .manual-mode {
+            background-color: #2196F3;
+            color: white;
+        }
     </style>
 </head>
 <body>
@@ -55,10 +58,14 @@
         <video id="video" playsinline></video>
         <canvas id="canvas"></canvas>
     </div>
-    <button id="productBtn" onclick="startScanner('product')">Escanear Produto</button>
-    <button id="shelfBtn" onclick="startScanner('shelf')">Escanear Prateleira</button>
-    <p>Produto: <input type="text" id="productCode" readonly></p>
-    <p>Prateleira: <input type="text" id="shelfCode" readonly></p>
+    <p>Produto:</p>
+    <button id="productScanBtn" onclick="startScanner('product')">Escanear Produto</button>
+    <button id="productManualBtn" onclick="enableManualInput('product')">Informar Manualmente</button>
+    <p><input type="text" id="productCode" readonly></p>
+    <p>Prateleira:</p>
+    <button id="shelfScanBtn" onclick="startScanner('shelf')">Escanear Prateleira</button>
+    <button id="shelfManualBtn" onclick="enableManualInput('shelf')">Informar Manualmente</button>
+    <p><input type="text" id="shelfCode" readonly></p>
     <p>Quantidade: <input type="number" id="quantity" min="0" inputmode="numeric"></p>
     <p>Observações: <textarea id="notes" rows="4" style="resize: vertical;"></textarea></p>
     <button onclick="saveData()">Salvar</button>
@@ -83,90 +90,92 @@
         let scannerActive = false;
         let videoStream = null;
 
-        function highlightButton(type) {
-            document.getElementById('productBtn').classList.remove('scan-mode');
-            document.getElementById('shelfBtn').classList.remove('scan-mode');
-            if (type) {
-                document.getElementById(`${type}Btn`).classList.add('scan-mode');
+        function highlightButton(type, mode) {
+            document.getElementById('productScanBtn').classList.remove('scan-mode');
+            document.getElementById('productManualBtn').classList.remove('manual-mode');
+            document.getElementById('shelfScanBtn').classList.remove('scan-mode');
+            document.getElementById('shelfManualBtn').classList.remove('manual-mode');
+            if (type && mode) {
+                document.getElementById(`${type}${mode === 'scan' ? 'ScanBtn' : 'ManualBtn'}`).classList.add(mode === 'scan' ? 'scan-mode' : 'manual-mode');
             }
         }
 
         function stopAllScanners() {
-            // Parar Quagga se estiver ativo
             if (Quagga && scannerActive) {
                 Quagga.stop();
                 scannerActive = false;
             }
-            
-            // Parar o stream de vídeo se estiver ativo
             if (videoStream) {
                 videoStream.getTracks().forEach(track => track.stop());
                 videoStream = null;
             }
-            
-            // Limpar o vídeo
             const video = document.getElementById('video');
             video.srcObject = null;
-            
             currentScanType = '';
             highlightButton('');
         }
 
-        function startScanner(type) {
-            // Parar scanners anteriores
+        function enableManualInput(type) {
             stopAllScanners();
-            
-            currentScanType = type;
-            highlightButton(type);
-            
-            // Perguntar ao usuário qual tipo de código quer escanear
-            const codeType = confirm("Escaneando " + (type === 'product' ? 'Produto' : 'Prateleira') + 
-                               "\n\nDeseja escanear QR Code? (OK para QR Code, Cancelar para Código de Barras)");
-            
-            if (codeType) {
-                startQRScanner();
-            } else {
-                startBarcodeScanner();
+            const input = document.getElementById(`${type}Code`);
+            input.removeAttribute('readonly');
+            input.focus();
+            highlightButton(type, 'manual');
+            if (type === 'product') {
+                input.onblur = () => {
+                    document.getElementById('shelfCode').focus();
+                };
+            } else if (type === 'shelf') {
+                input.onblur = () => {
+                    document.getElementById('quantity').focus();
+                };
             }
         }
 
-        function startBarcodeScanner() {
-            if (!Quagga) {
+        function startScanner(type) {
+            stopAllScanners();
+            currentScanType = type;
+            highlightButton(type, 'scan');
+            
+            // Tenta iniciar com QuaggaJS para códigos de barras
+            if (Quagga) {
+                Quagga.init({
+                    inputStream: {
+                        name: "Live",
+                        type: "LiveStream",
+                        target: document.querySelector('#video'),
+                        constraints: {
+                            facingMode: "environment",
+                            width: { min: 640 },
+                            height: { min: 480 }
+                        }
+                    },
+                    decoder: {
+                        readers: ["ean_reader", "code_128_reader", "upc_reader", "ean_8_reader"]
+                    },
+                    locate: true
+                }, function(err) {
+                    if (err) {
+                        console.error('Erro ao iniciar o scanner:', err);
+                        alert('Erro ao iniciar a câmera: ' + err.message + '. Verifique as permissões da câmera.');
+                        highlightButton('');
+                        return;
+                    }
+                    Quagga.start();
+                    scannerActive = true;
+                    startQRScanner(); // Inicia QR scanner em paralelo
+                });
+
+                Quagga.onDetected(function(data) {
+                    const code = data.codeResult.code;
+                    processScannedCode(code);
+                    stopAllScanners();
+                });
+            } else {
                 alert('Erro: Biblioteca QuaggaJS não foi carregada.');
+                highlightButton('');
                 return;
             }
-            
-            Quagga.init({
-                inputStream: {
-                    name: "Live",
-                    type: "LiveStream",
-                    target: document.querySelector('#video'),
-                    constraints: {
-                        facingMode: "environment",
-                        width: { min: 640 },
-                        height: { min: 480 }
-                    }
-                },
-                decoder: {
-                    readers: ["ean_reader", "code_128_reader", "upc_reader", "ean_8_reader"]
-                },
-                locate: true
-            }, function(err) {
-                if (err) {
-                    console.error('Erro ao iniciar o scanner:', err);
-                    alert('Erro ao iniciar a câmera: ' + err.message);
-                    highlightButton('');
-                    return;
-                }
-                Quagga.start();
-                scannerActive = true;
-            });
-
-            Quagga.onDetected(function(data) {
-                const code = data.codeResult.code;
-                processScannedCode(code);
-                stopAllScanners();
-            });
         }
 
         function startQRScanner() {
@@ -174,64 +183,41 @@
             const canvas = document.getElementById('canvas');
             const canvasContext = canvas.getContext('2d');
             
-            // Configurar constraints para melhor leitura de QR Code
-            const constraints = {
-                audio: false,
-                video: {
-                    facingMode: "environment",
-                    width: { min: 640, ideal: 1280 },
-                    height: { min: 480, ideal: 720 }
-                }
-            };
-            
-            navigator.mediaDevices.getUserMedia(constraints)
-                .then(function(stream) {
-                    videoStream = stream;
-                    video.srcObject = stream;
-                    video.setAttribute('playsinline', true); // importante para iOS
-                    video.play();
-                    
-                    function scanQR() {
-                        if (!currentScanType) return; // Se o scanner foi desativado
-                        
-                        if (video.readyState === video.HAVE_ENOUGH_DATA) {
-                            canvas.width = video.videoWidth;
-                            canvas.height = video.videoHeight;
-                            canvasContext.drawImage(video, 0, 0, canvas.width, canvas.height);
-                            
-                            const imageData = canvasContext.getImageData(0, 0, canvas.width, canvas.height);
-                            const code = jsQR(imageData.data, imageData.width, imageData.height);
-                            
-                            if (code) {
-                                processScannedCode(code.data);
-                                stopAllScanners();
-                                return;
-                            }
-                        }
-                        
-                        requestAnimationFrame(scanQR);
+            if (videoStream) {
+                video.srcObject = videoStream;
+                video.play();
+            }
+
+            function scanQR() {
+                if (!currentScanType) return;
+                if (video.readyState === video.HAVE_ENOUGH_DATA) {
+                    canvas.width = video.videoWidth;
+                    canvas.height = video.videoHeight;
+                    canvasContext.drawImage(video, 0, 0, canvas.width, canvas.height);
+                    const imageData = canvasContext.getImageData(0, 0, canvas.width, canvas.height);
+                    const code = jsQR(imageData.data, imageData.width, imageData.height);
+                    if (code) {
+                        processScannedCode(code.data);
+                        stopAllScanners();
+                        return;
                     }
-                    
-                    video.onplaying = function() {
-                        scanQR();
-                    };
-                })
-                .catch(function(err) {
-                    console.error("Erro ao acessar a câmera: ", err);
-                    alert("Erro ao acessar a câmera: " + err.message);
-                    highlightButton('');
-                });
+                }
+                requestAnimationFrame(scanQR);
+            }
+            
+            video.onplaying = function() {
+                scanQR();
+            };
         }
 
         function processScannedCode(code) {
             if (!currentScanType) return;
-            
+            const input = document.getElementById(`${currentScanType}Code`);
+            input.value = code;
             if (currentScanType === 'product') {
-                document.getElementById('productCode').value = code;
-                // Foca automaticamente no campo de quantidade para agilizar
-                document.getElementById('quantity').focus();
+                document.getElementById('shelfCode').focus();
             } else if (currentScanType === 'shelf') {
-                document.getElementById('shelfCode').value = code;
+                document.getElementById('quantity').focus();
             }
         }
 
@@ -246,27 +232,14 @@
                 return;
             }
 
-            // Verifica se já existe um item com o mesmo produto e prateleira
             const existingIndex = inventory.findIndex(
                 item => item.productCode === productCode && item.shelfCode === shelfCode
             );
 
             if (existingIndex >= 0) {
-                // Atualiza o item existente
-                inventory[existingIndex] = {
-                    productCode,
-                    shelfCode,
-                    quantity,
-                    notes
-                };
+                inventory[existingIndex] = { productCode, shelfCode, quantity, notes };
             } else {
-                // Adiciona novo item
-                inventory.push({
-                    productCode,
-                    shelfCode,
-                    quantity,
-                    notes
-                });
+                inventory.push({ productCode, shelfCode, quantity, notes });
             }
 
             localStorage.setItem('inventory', JSON.stringify(inventory));
@@ -280,6 +253,8 @@
             document.getElementById('shelfCode').value = '';
             document.getElementById('quantity').value = '';
             document.getElementById('notes').value = '';
+            document.getElementById('productCode').setAttribute('readonly', 'readonly');
+            document.getElementById('shelfCode').setAttribute('readonly', 'readonly');
         }
 
         function displayInventory(data = inventory) {
@@ -306,10 +281,7 @@
             displayInventory(filteredData);
         }
 
-        // Carregar dados ao iniciar
         displayInventory();
-
-        // Parar scanners quando a página for fechada
         window.addEventListener('beforeunload', stopAllScanners);
     </script>
 </body>

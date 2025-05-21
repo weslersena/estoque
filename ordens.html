@@ -68,9 +68,14 @@
     <p>Status: 
         <select id="status">
             <option value="Processo">Processo</option>
-            <option value="Amarração ou Liberação">Amarração ou Liberação</option>
+            <option value="Amarração">Amarração</option>
+            <option value="Liberação">Liberação</option>
             <option value="Manutenção">Manutenção</option>
             <option value="Finalizado">Finalizado</option>
+            <option value="Setup">Setup</option>
+            <option value="Falta de Pedido">Falta de Pedido</option>
+            <option value="Falta de Matéria Prima">Falta de Matéria Prima</option>
+            <option value="Falta de Operador">Falta de Operador</option>
         </select>
     </p>
     <p>Observações: <textarea id="notes" rows="4" style="resize: vertical;"></textarea></p>
@@ -227,13 +232,20 @@
         }
 
         function saveToGoogleSheets(orderData) {
-            fetch('https://script.google.com/macros/s/AKfycbwdd29-F7Q6wbRpdoOZVaSiHdDMRi40rJ77MhQxT5ZaWJ1Ki1CgKGxUjqNTeapSi3Zs/exec', {
+            console.log('Enviando dados para Google Sheets:', orderData);
+            fetch('INSIRA_O_URL_DO_APPS_SCRIPT_AQUI', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(orderData)
-            }).then(response => response.json())
-                .then(data => console.log('Dados enviados para Google Sheets:', data))
-                .catch(error => console.error('Erro ao enviar para Google Sheets:', error));
+            }).then(response => {
+                console.log('Resposta do Google Sheets:', response);
+                return response.json();
+            }).then(data => {
+                console.log('Dados enviados com sucesso:', data);
+            }).catch(error => {
+                console.error('Erro ao enviar para Google Sheets:', error);
+                alert('Erro ao salvar no Google Sheets: ' + error.message);
+            });
         }
 
         function saveData() {

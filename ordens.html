@@ -120,6 +120,7 @@
         let currentOrderData = {};
 
         function highlightButton(mode) {
+            console.log('Destacando botão:', mode);
             document.getElementById('scanBtn').classList.remove('scan-mode');
             document.getElementById('editBtn').classList.remove('edit-mode');
             if (mode === 'scan') {
@@ -130,6 +131,7 @@
         }
 
         function stopScanner() {
+            console.log('Parando scanner');
             if (scannerActive) {
                 scannerActive = false;
             }
@@ -143,12 +145,14 @@
         }
 
         function startScanner() {
+            console.log('Iniciando scanner de QR Code');
             stopScanner();
             scannerActive = true;
             highlightButton('scan');
 
             if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
                 alert('Erro: Seu dispositivo não suporta acesso à câmera.');
+                console.log('Câmera não suportada');
                 stopScanner();
                 return;
             }
@@ -160,26 +164,37 @@
                     height: { min: 480, ideal: 720 }
                 }
             }).then(function(stream) {
+                console.log('Câmera iniciada com stream:', stream);
                 videoStream = stream;
                 const video = document.getElementById('video');
                 video.srcObject = stream;
                 video.setAttribute('playsinline', true);
-                video.play();
-                startQRScanner();
+                video.play().then(() => {
+                    console.log('Vídeo iniciado, resolução:', video.videoWidth, 'x', video.videoHeight);
+                    startQRScanner();
+                }).catch(err => {
+                    console.error('Erro ao iniciar vídeo:', err);
+                    alert('Erro ao iniciar vídeo: ' + err.message);
+                    stopScanner();
+                });
             }).catch(function(err) {
                 console.error('Erro ao acessar a câmera:', err);
-                alert('Erro ao acessar a câmera: ' + err.message + '. Verifique as permissões.');
+                alert('Erro ao acessar a câmera: ' + err.message + '. Verifique as permissões no Chrome e nas Configurações do celular.');
                 stopScanner();
             });
         }
 
         function startQRScanner() {
+            console.log('Iniciando escaneamento de QR Code');
             const video = document.getElementById('video');
             const canvas = document.getElementById('canvas');
             const canvasContext = canvas.getContext('2d');
 
             function scanQR() {
-                if (!scannerActive) return;
+                if (!scannerActive) {
+                    console.log('Escaneamento parado');
+                    return;
+                }
                 if (video.readyState === video.HAVE_ENOUGH_DATA) {
                     canvas.width = video.videoWidth;
                     canvas.height = video.videoHeight;
@@ -187,23 +202,28 @@
                     const imageData = canvasContext.getImageData(0, 0, canvas.width, canvas.height);
                     const code = jsQR(imageData.data, imageData.width, imageData.height);
                     if (code && code.data) {
+                        console.log(`QR Code detectado: ${code.data}`);
                         processQRCode(code.data);
                         stopScanner();
                         document.getElementById('status').focus();
+                    } else {
+                        console.log('Nenhum QR Code detectado neste frame');
                     }
+                } else {
+                    console.log('Vídeo ainda não está pronto:', video.readyState);
                 }
                 requestAnimationFrame(scanQR);
             }
 
-            video.onplaying = function() {
-                scanQR();
-            };
+            scanQR();
         }
 
         function processQRCode(code) {
+            console.log('Processando QR Code:', code);
             const fields = code.split('-');
             if (fields.length !== 15) {
                 alert('Erro: O QR Code deve conter 15 campos separados por hífen.');
+                console.log('QR Code inválido, campos:', fields.length);
                 currentOrderData = {};
                 return;
             }
@@ -224,38 +244,63 @@
                 dataEntrega: fields[13],
                 quantidade: fields[14]
             };
+            console.log('Dados do QR Code processados:', currentOrderData);
         }
 
         function saveToGoogleSheets(orderData) {
-            // URL do seu Google Apps Script (substitua pela sua URL real)
-            const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxSRSQnezhg7q19w1u4FI3tq8yjvYeSBnH5l0KYDGn4aY31rBFoy7AXbzIHe4FWCzki/exec";
-            
-            // Criando um formulário como solução alternativa para o CORS
-            const form = document.createElement('form');
-            form.method = 'POST';
-            form.action = GOOGLE_SCRIPT_URL;
-            form.target = '_blank'; // Abre em nova aba para evitar problemas
-            
-            // Adicionando os dados como campos ocultos
-            for (const key in orderData) {
-                const input = document.createElement('input');
-                input.type = 'hidden';
-                input.name = key;
-                input.value = orderData[key];
-                form.appendChild(input);
-            }
-            
-            document.body.appendChild(form);
-            form.submit();
-            document.body.removeChild(form);
-            
-            // Retorna uma promessa resolvida já que não podemos capturar a resposta
-            return Promise.resolve();
+            console.log('Iniciando salvamento no Google Sheets:', orderData);
+            // Proxy padrão: api.allorigins.win
+            const proxyUrl = 'https://api.allorigins.win/raw?url=';
+            const scriptUrl = 'https://script.google.com/macros/s/AKfycbxSRSQnezhg7q19w1u4FI3tq8yjvYeSBnH5l0KYDGn4aY31rBFoy7AXbzIHe4FWCzki/exec';
+            // Alternativa: descomentar para usar cors-anywhere (requer ativação)
+            // const proxyUrl = 'https://cors-anywhere.herokuapp.com/';
+            // const scriptUrl = 'https://script.google.com/macros/s/AKfycbxSRSQnezhg7q19w1u4FI3tq8yjvYeSBnH5l0KYDGn4aY31rBFoy7AXbzIHe4FWCzki/exec';
+            fetch(proxyUrl + encodeURIComponent(scriptUrl), {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(orderData),
+                redirect: 'follow',
+                credentials: 'omit'
+            }).then(response => {
+                console.log('Resposta do servidor:', response.status, response.statusText);
+                if (!response.ok) {
+                    throw new Error(`Erro HTTP! Status: ${response.status} ${response.statusText}`);
+                }
+                return response.text(); // Usar text() para capturar resposta bruta
+            }).then(text => {
+                console.log('Resposta bruta:', text);
+                let data;
+                try {
+                    data = JSON.parse(text);
+                    console.log('Resposta JSON:', data);
+                } catch (e) {
+                    console.warn('Resposta não é JSON válido:', text);
+                    data = { status: 'error', message: 'Resposta inválida do servidor: ' + text };
+                }
+                if (data.status === 'error') {
+                    alert('Erro no Google Sheets: ' + data.message);
+                    console.log('Erro retornado:', data.message);
+                } else {
+                    alert('Dados salvos no Google Sheets com sucesso!');
+                    console.log('Salvamento bem-sucedido');
+                }
+            }).catch(error => {
+                console.error('Erro ao salvar no Google Sheets:', error);
+                let errorMessage = error.message;
+                if (error.message.includes('403') && proxyUrl.includes('cors-anywhere')) {
+                    errorMessage += '. Ative o proxy em https://cors-anywhere.herokuapp.com/';
+                } else {
+                    errorMessage += '. Tente novamente ou use Exportar para CSV.';
+                }
+                alert('Erro ao salvar no Google Sheets: ' + errorMessage + '. Dados salvos localmente.');
+            });
         }
 
         function saveData() {
+            console.log('Iniciando função saveData');
             if (!currentOrderData.cliente && editingIndex === null) {
                 alert("Por favor, escaneie um QR Code para registrar a ordem.");
+                console.log('Nenhum QR Code escaneado');
                 return;
             }
 
@@ -268,30 +313,31 @@
                 notes,
                 timestamp: new Date().toLocaleString('pt-BR')
             };
+            console.log('Dados da ordem:', orderData);
 
             if (editingIndex !== null) {
+                console.log('Editando ordem, índice:', editingIndex);
                 orders[editingIndex] = orderData;
                 editingIndex = null;
                 document.getElementById('editBtn').disabled = true;
                 document.getElementById('saveBtn').textContent = 'Salvar';
                 alert('Ordem editada com sucesso!');
             } else {
+                console.log('Adicionando nova ordem');
                 orders.push(orderData);
                 alert('Ordem salva com sucesso localmente!');
             }
 
-            // Salvando no Google Sheets (funcionará se o usuário não bloquear pop-ups)
-            saveToGoogleSheets(orderData)
-                .catch(error => {
-                    console.error('Erro ao salvar no Google Sheets:', error);
-                });
-
+            console.log('Chamando saveToGoogleSheets');
+            saveToGoogleSheets(orderData);
             localStorage.setItem('orders', JSON.stringify(orders));
+            console.log('Dados salvos no localStorage');
             clearForm();
             displayOrders();
         }
 
         function startEdit(index) {
+            console.log('Iniciando edição, índice:', index);
             editingIndex = index;
             const order = orders[index];
             currentOrderData = {
@@ -317,18 +363,22 @@
             document.getElementById('editBtn').disabled = true;
             highlightButton('edit');
             document.getElementById('status').focus();
+            console.log('Formulário preenchido para edição');
         }
 
         function deleteOrder(index) {
+            console.log('Iniciando exclusão, índice:', index);
             if (confirm('Tem certeza que deseja excluir esta ordem?')) {
                 orders.splice(index, 1);
                 localStorage.setItem('orders', JSON.stringify(orders));
                 displayOrders();
                 alert('Ordem excluída com sucesso!');
+                console.log('Ordem excluída');
             }
         }
 
         function clearForm() {
+            console.log('Limpando formulário');
             currentOrderData = {};
             document.getElementById('status').value = 'Processo';
             document.getElementById('notes').value = '';
@@ -339,6 +389,7 @@
         }
 
         function displayOrders(data = orders) {
+            console.log('Exibindo ordens:', data.length);
             const tableBody = document.getElementById('ordersBody');
             tableBody.innerHTML = '';
             data.forEach((order, index) => {
@@ -372,6 +423,7 @@
         }
 
         function searchData() {
+            console.log('Iniciando busca');
             const searchTerm = document.getElementById('search').value.toLowerCase();
             const filteredData = orders.filter(order =>
                 order.cliente.toLowerCase().includes(searchTerm) ||
@@ -379,9 +431,11 @@
                 order.status.toLowerCase().includes(searchTerm)
             );
             displayOrders(filteredData);
+            console.log('Busca concluída, resultados:', filteredData.length);
         }
 
         function exportToCSV() {
+            console.log('Iniciando exportação para CSV');
             const csv = [
                 'CLIENTE,ARTE,ARTE2,PEDIDO,MAQUINA,CARGA,ARTIGO,DATA INICIO,DATA FIM,EMBALAGEM,ROTEIRO,SOLICITANTE,REGIÃO,DATA ENTREGA,QUANTIDADE (M),Status,Observações,Data'
             ];
@@ -401,10 +455,12 @@
             a.click();
             URL.revokeObjectURL(url);
             alert('Dados exportados para CSV!');
+            console.log('Exportação concluída');
         }
 
         displayOrders();
         window.addEventListener('beforeunload', stopScanner);
+        console.log('Página carregada');
     </script>
 </body>
 </html>

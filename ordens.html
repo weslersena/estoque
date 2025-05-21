@@ -239,12 +239,13 @@
 
         function saveToGoogleSheets(orderData) {
             console.log('Iniciando salvamento no Google Sheets:', orderData);
-            const proxyUrl = 'https://cors-anywhere.herokuapp.com/';
+            // Proxy padrão: api.allorigins.win (não exige ativação)
+            const proxyUrl = 'https://api.allorigins.win/raw?url=';
             const scriptUrl = 'https://script.google.com/macros/s/AKfycbxSRSQnezhg7q19w1u4FI3tq8yjvYeSBnH5l0KYDGn4aY31rBFoy7AXbzIHe4FWCzki/exec';
-            // Alternativa: descomentar abaixo para usar api.allorigins.win
-            // const proxyUrl = 'https://api.allorigins.win/raw?url=';
+            // Alternativa: descomentar abaixo para usar cors-anywhere (requer ativação em https://cors-anywhere.herokuapp.com/)
+            // const proxyUrl = 'https://cors-anywhere.herokuapp.com/';
             // const scriptUrl = 'https://script.google.com/macros/s/AKfycbxSRSQnezhg7q19w1u4FI3tq8yjvYeSBnH5l0KYDGn4aY31rBFoy7AXbzIHe4FWCzki/exec';
-            fetch(proxyUrl + scriptUrl, {
+            fetch(proxyUrl + encodeURIComponent(scriptUrl), {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(orderData),
@@ -268,8 +269,10 @@
             }).catch(error => {
                 console.error('Erro ao salvar no Google Sheets:', error);
                 let errorMessage = error.message;
-                if (error.message.includes('403')) {
+                if (error.message.includes('403') && proxyUrl.includes('cors-anywhere')) {
                     errorMessage += '. Ative o proxy em https://cors-anywhere.herokuapp.com/';
+                } else {
+                    errorMessage += '. Tente novamente ou use Exportar para CSV.';
                 }
                 alert('Erro ao salvar no Google Sheets: ' + errorMessage + '. Dados salvos localmente.');
             });
@@ -422,7 +425,7 @@
                 csv.push(
                     `"${order.cliente || ''}","${order.arte || ''}","${order.arte2 || ''}","${order.pedido || ''}","${order.maquina || ''}",` +
                     `"${order.carga || ''}","${order.artigo || ''}","${order.dataInicio || ''}","${order.dataFim || ''}","${order.embalagem || ''}",` +
-                    `"${order.roteiro || ''}","${order.solicitante || ''}","${orig.regiao || ''}","${order.dataEntrega || ''}","${order.quantidade || ''}",` +
+                    `"${order.roteiro || ''}","${order.solicitante || ''}","${order.regiao || ''}","${order.dataEntrega || ''}","${order.quantidade || ''}",` +
                     `"${order.status || ''}","${order.notes || ''}","${order.timestamp || ''}"`
                 );
             });

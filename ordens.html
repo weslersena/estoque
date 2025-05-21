@@ -239,10 +239,10 @@
 
         function saveToGoogleSheets(orderData) {
             console.log('Iniciando salvamento no Google Sheets:', orderData);
-            // Proxy padrão: api.allorigins.win (não exige ativação)
+            // Proxy padrão: api.allorigins.win
             const proxyUrl = 'https://api.allorigins.win/raw?url=';
             const scriptUrl = 'https://script.google.com/macros/s/AKfycbxSRSQnezhg7q19w1u4FI3tq8yjvYeSBnH5l0KYDGn4aY31rBFoy7AXbzIHe4FWCzki/exec';
-            // Alternativa: descomentar abaixo para usar cors-anywhere (requer ativação em https://cors-anywhere.herokuapp.com/)
+            // Alternativa: descomentar para usar cors-anywhere (requer ativação)
             // const proxyUrl = 'https://cors-anywhere.herokuapp.com/';
             // const scriptUrl = 'https://script.google.com/macros/s/AKfycbxSRSQnezhg7q19w1u4FI3tq8yjvYeSBnH5l0KYDGn4aY31rBFoy7AXbzIHe4FWCzki/exec';
             fetch(proxyUrl + encodeURIComponent(scriptUrl), {
@@ -258,10 +258,12 @@
                 }
                 return response.json();
             }).then(data => {
-                console.log('Resposta JSON:', data);
-                if (data.status === 'error') {
-                    alert('Erro no Google Sheets: ' + data.message);
-                    console.log('Erro retornado pelo Apps Script:', data.message);
+                console.log('Resposta JSON bruta:', data);
+                // Processar resposta diretamente, sem assumir 'contents'
+                const responseData = data;
+                if (responseData.status === 'error') {
+                    alert('Erro no Google Sheets: ' + responseData.message);
+                    console.log('Erro retornado pelo Apps Script:', responseData.message);
                 } else {
                     alert('Dados salvos no Google Sheets com sucesso!');
                     console.log('Salvamento bem-sucedido');

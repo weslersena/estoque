@@ -233,7 +233,7 @@
 
         function saveToGoogleSheets(orderData) {
             console.log('Enviando dados para Google Sheets:', orderData);
-            fetch('INSIRA_O_URL_DO_APPS_SCRIPT_AQUI', {
+            fetch('https://script.google.com/macros/s/AKfycbwuWAoOyVwLrOdVMWtIu3A1k6uhW3fijvFBjom7oA3bymZ196Q5zMd5xmNSGwVmY_EO/exec', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(orderData)

@@ -249,6 +249,9 @@
 
         function saveToGoogleSheets(orderData) {
             console.log('Iniciando salvamento no Google Sheets:', orderData);
+            // Envelopar os dados em 'contents' para compatibilidade com o Apps Script
+            const payload = { contents: orderData };
+            console.log('Dados enviados:', payload);
             // Proxy padrão: api.allorigins.win
             const proxyUrl = 'https://api.allorigins.win/raw?url=';
             const scriptUrl = 'https://script.google.com/macros/s/AKfycbxSRSQnezhg7q19w1u4FI3tq8yjvYeSBnH5l0KYDGn4aY31rBFoy7AXbzIHe4FWCzki/exec';
@@ -258,7 +261,7 @@
             fetch(proxyUrl + encodeURIComponent(scriptUrl), {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(orderData),
+                body: JSON.stringify(payload),
                 redirect: 'follow',
                 credentials: 'omit'
             }).then(response => {
